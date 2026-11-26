@@ -1,10 +1,9 @@
 package com.headsplosion.nugs
 
-/** The Rust film engine (crates/nugs-android). */
+/** The Rust film engine (crates/nugs-android). Each call replies "OK …" or "ERR …". */
 object Engine {
     init { System.loadLibrary("nugs_android") }
-    external fun develop(
-        data: String, cache: String, input: String, output: String, film: String, paper: String, maxSide: Int,
-        ratio: Float, zoom: Float, angle: Float, x: Float, y: Float, grain: Float,
-    ): String
+    external fun catalog(data: String): String
+    external fun balance(data: String, film: String, paper: String, params: String): String
+    external fun develop(data: String, cache: String, input: String, output: String, request: String): String
 }

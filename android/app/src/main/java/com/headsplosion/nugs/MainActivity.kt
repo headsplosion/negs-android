@@ -32,6 +32,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.conflate
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import org.json.JSONObject
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -41,14 +47,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-private data class Stock(val name: String, val film: String, val paper: String)
-
-private val stocks = listOf(
-    Stock("Portra 400", "kodak_portra_400", "kodak_portra_endura"),
-    Stock("Gold 200", "kodak_gold_200", "kodak_portra_endura"),
-    Stock("CineStill 800T", "cinestill_800t", "kodak_portra_endura"),
-    Stock("HP5 Plus", "ilford_hp5_plus", "ilford_mgrc_deluxe_grade2"),
-)
+private val tabs = listOf("Crop", "Prep", "Stock", "Camera", "Film", "Print", "Scan", "Output")
 
 class MainActivity : ComponentActivity() {
     private var shared by mutableStateOf<Uri?>(null)
@@ -74,20 +73,48 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+/** What a preview shows; a change to any of it develops again. */
+private data class Shot(val source: File, val edit: Edit, val crop: Crop)
+
+/** The engine runs one call at a time. */
+private val engine = Mutex()
+
+private fun request(catalog: Catalog, shot: Shot, maxSide: Int, preview: Boolean): String {
+    val (_, edit, crop) = shot
+    val frame = JSONObject()
+        .put("ratio", ratios[crop.ratio].second.toDouble()).put("zoom", crop.zoom.toDouble())
+        .put("angle", crop.angle.toDouble()).put("x", crop.x.toDouble()).put("y", crop.y.toDouble())
+    val border = edit.border.takeIf { it.enabled && (preview || it.export) }
+    return JSONObject()
+        .put("film", edit.film).put("paper", edit.paper).put("max_side", maxSide).put("preview", preview)
+        .put("crop", frame).put("grain", edit.grain.toDouble()).put("params", edit.params(catalog))
+        .put("border", border?.request() ?: JSONObject.NULL)
+        .toString()
+}
+
+private suspend fun call(work: () -> String): String = engine.withLock {
+    val reply = withContext(Dispatchers.Default) { work() }
+    if (!reply.startsWith("OK ")) error(reply.removePrefix("ERR "))
+    reply.removePrefix("OK ")
+}
+
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ComponentActivity.Screen(shared: Uri?) {
     val scope = rememberCoroutineScope()
+    var data by remember { mutableStateOf<File?>(null) }
+    var catalog by remember { mutableStateOf<Catalog?>(null) }
+    val controls = remember { Controls(assets.open("controls.json").bufferedReader().use { it.readText() }) }
+    var edit by remember { mutableStateOf(Edit("kodak_portra_400", "kodak_portra_endura")) }
     var source by remember { mutableStateOf<File?>(null) }
-    var result by remember { mutableStateOf<File?>(null) }
+    var original by remember { mutableStateOf<Bitmap?>(null) }
     var preview by remember { mutableStateOf<Bitmap?>(null) }
-    var stock by remember { mutableStateOf(stocks[0]) }
+    var crop by remember { mutableStateOf(Crop()) }
+    var tab by remember { mutableIntStateOf(0) }
     var large by remember { mutableStateOf(false) }
     var busy by remember { mutableStateOf(false) }
-    var crop by remember { mutableStateOf(Crop()) }
-    var original by remember { mutableStateOf<Bitmap?>(null) }
-    var grain by remember { mutableFloatStateOf(1f) }
-    var message by remember { mutableStateOf("Choose a photo to start.") }
+    var rendering by remember { mutableStateOf(false) }
+    var message by remember { mutableStateOf("Loading film data…") }
 
     fun run(block: suspend () -> Unit) {
         if (busy) return
@@ -98,99 +125,152 @@ private fun ComponentActivity.Screen(shared: Uri?) {
         }
     }
 
+    LaunchedEffect(Unit) {
+        try {
+            val dir = withContext(Dispatchers.IO) { filmData(this@Screen) }
+            data = dir
+            catalog = Catalog(call { Engine.catalog(dir.path) })
+            if (source == null) message = "Choose a photo to start."
+        } catch (e: Throwable) {
+            message = "Failed: ${e.message}"
+        }
+    }
+
     fun open(uri: Uri) = run {
         message = "Opening…"
         val file = withContext(Dispatchers.IO) { importPhoto(uri) }
-        source = file
-        result = null
         original = withContext(Dispatchers.IO) { load(file) }
+        source = file
+        preview = null
         crop = Crop()
-        message = "Frame it, pick a film, then Develop."
+        tab = 0
+        message = "Frame it on this tab; the others show the developed photo."
     }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { it?.let(::open) }
     LaunchedEffect(shared) { shared?.let(::open) }
 
-    fun adjust(new: Crop) {
-        if (busy) return
-        crop = new
-        result = null
+    // Live preview: after each change develop the newest settings, skipping
+    // any that were passed over while the last one rendered.
+    LaunchedEffect(Unit) {
+        snapshotFlow {
+            val file = source
+            if (file == null || catalog == null || tab == 0) null else Shot(file, edit, crop)
+        }.distinctUntilChanged().filterNotNull().conflate().collect { shot ->
+            rendering = true
+            try {
+                val output = File(cacheDir, "preview.jpg")
+                val made = request(catalog!!, shot, 1080, true)
+                message = call { Engine.develop(data!!.path, cacheDir.path, shot.source.path, output.path, made) }
+                preview = withContext(Dispatchers.IO) { load(output) }
+            } catch (e: Throwable) {
+                message = "Failed: ${e.message}"
+            }
+            rendering = false
+        }
     }
 
-    Column(Modifier.safeDrawingPadding().padding(horizontal = 16.dp)) {
-    Box(Modifier.fillMaxWidth().fillMaxHeight(0.48f), contentAlignment = Alignment.Center) {
-        val developed = preview.takeIf { result != null }
-        if (developed != null) Image(developed.asImageBitmap(), null, Modifier.fillMaxSize())
-        else original?.let { CropEditor(it, crop, ::adjust) }
+    fun change(new: Edit) { edit = new }
+    fun adjust(new: Crop) { crop = new; preview = null }
+
+    fun balance() = run {
+        val c = catalog ?: return@run
+        val at = edit
+        val reply = call { Engine.balance(data!!.path, at.film, at.paper, at.params(c).toString()) }
+        val (m, y) = reply.split(" ").map { it.toDouble() }
+        edit = edit.set("enlarger.m_filter_shift", m).set("enlarger.y_filter_shift", y)
+        message = "Print balanced: magenta %.2f, yellow %.2f".format(m, y)
     }
-    Column(
-        Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        Text("NUGS", style = MaterialTheme.typography.titleLarge)
-        OutlinedButton(
-            { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
-            Modifier.fillMaxWidth(), enabled = !busy,
-        ) { Text("Choose photo") }
-        if (original != null) {
-            if (result != null) TextButton({ result = null }, enabled = !busy) { Text("Adjust crop") }
-            else Text("Drag to move, pinch to zoom, twist to rotate.", style = MaterialTheme.typography.bodySmall)
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ratios.forEachIndexed { i, r ->
-                    FilterChip(crop.ratio == i, { adjust(crop.copy(ratio = i, x = 0f, y = 0f)) }, { Text(r.first) }, enabled = !busy)
+
+    fun export() = run {
+        val c = catalog ?: return@run
+        val file = source ?: return@run
+        message = "Developing full size…"
+        val output = File(cacheDir, "developed.jpg")
+        val made = request(c, Shot(file, edit, crop), if (large) 4096 else 2048, false)
+        val report = call { Engine.develop(data!!.path, cacheDir.path, file.path, output.path, made) }
+        withContext(Dispatchers.IO) { save(output) }
+        message = "Saved to Pictures/Nugs · $report"
+    }
+
+    Column(Modifier.safeDrawingPadding()) {
+        Box(Modifier.fillMaxWidth().fillMaxHeight(0.45f).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
+            val developed = preview.takeIf { tab != 0 }
+            if (developed != null) Image(developed.asImageBitmap(), null, Modifier.fillMaxSize())
+            else original?.let { CropEditor(it, crop, ::adjust) }
+        }
+        if (rendering || busy) LinearProgressIndicator(Modifier.fillMaxWidth())
+        else Spacer(Modifier.height(4.dp))
+        Row(Modifier.padding(horizontal = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                Modifier.weight(1f), enabled = !busy,
+            ) { Text("Choose photo") }
+            Button(::export, Modifier.weight(1f), enabled = source != null && catalog != null && !busy) { Text("Save JPEG") }
+        }
+        Text(message, Modifier.padding(horizontal = 16.dp), style = MaterialTheme.typography.bodySmall)
+        ScrollableTabRow(tab, edgePadding = 8.dp) {
+            tabs.forEachIndexed { i, name -> Tab(tab == i, { tab = i }, text = { Text(name) }) }
+        }
+        // A new scroll position for each tab.
+        key(tab) {
+            Column(
+                Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                val c = catalog
+                if (c != null) when (tabs[tab]) {
+                    "Crop" -> if (original != null) {
+                        Text("Drag to move, pinch to zoom, twist to rotate.", style = MaterialTheme.typography.bodySmall)
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            ratios.forEachIndexed { i, r ->
+                                FilterChip(crop.ratio == i, { adjust(crop.copy(ratio = i, x = 0f, y = 0f)) }, { Text(r.first) })
+                            }
+                        }
+                        Text("Rotate ${"%.1f".format(crop.angle)}°")
+                        Slider(crop.angle, { adjust(crop.copy(angle = it)) }, valueRange = -180f..180f)
+                        Text("Zoom ${"%.2f".format(crop.zoom)}×")
+                        Slider(crop.zoom, { adjust(crop.copy(zoom = it)) }, valueRange = 1f..6f)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            OutlinedButton({ adjust(crop.copy(angle = wrap(crop.angle + 90f))) }) { Text("Rotate 90°") }
+                            OutlinedButton({ adjust(Crop()) }) { Text("Reset crop") }
+                        }
+                    }
+                    "Prep" -> for (section in controls.prep) {
+                        // RAW white balance is for camera RAW files only.
+                        if (section.optBoolean("raw") && source?.extension?.lowercase() !in listOf("dng", "raf", "nef", "cr2", "cr3", "arw", "rw2", "orf")) continue
+                        Heading(section.getString("title"))
+                        ControlList(section.getJSONArray("controls").objects(), controls, c, edit, ::change, ::balance)
+                    }
+                    "Stock" -> {
+                        StockPicker("Film", c.films, edit.film) { change(edit.choose(c, it)) }
+                        Toggle("Scan film directly", edit.flag(c, "io.scan_film")) { change(edit.set("io.scan_film", it)) }
+                        if (!edit.flag(c, "io.scan_film")) {
+                            StockPicker("Paper", c.papers, edit.paper) { change(edit.copy(paper = it)) }
+                        }
+                        OutlinedButton({ change(edit.reset(c)) }, Modifier.fillMaxWidth()) { Text("Reset adjustments") }
+                    }
+                    "Output" -> {
+                        BorderControls(controls, edit.border) { change(edit.copy(border = it)) }
+                        Heading("Export size")
+                        Chips(listOf("2048" to "2048 px", "4096" to "4096 px"), if (large) "4096" else "2048") { large = it == "4096" }
+                        Text(
+                            "Built on Negs and spektrafilm. Free software under GPL-3.0: github.com/headsplosion/negs-android",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                    "Print" -> if (edit.flag(c, "io.scan_film")) Text("Printing is skipped while scanning film directly.")
+                    else Section(controls.lab("Print"), controls, c, edit, ::change, ::balance)
+                    "Film" -> {
+                        Dial("Grain amount (all channels)", edit.grain.toDouble(), 0.0, 3.0, 0.1, null) {
+                            change(edit.copy(grain = it.toFloat()))
+                        }
+                        Section(controls.lab("Film"), controls, c, edit, ::change, ::balance)
+                    }
+                    else -> Section(controls.lab(tabs[tab]), controls, c, edit, ::change, ::balance)
                 }
             }
-            Text("Rotate ${"%.1f".format(crop.angle)}°")
-            Slider(crop.angle, { adjust(crop.copy(angle = it)) }, valueRange = -180f..180f, enabled = !busy)
-            Text("Zoom ${"%.2f".format(crop.zoom)}×")
-            Slider(crop.zoom, { adjust(crop.copy(zoom = it)) }, valueRange = 1f..6f, enabled = !busy)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedButton({ adjust(crop.copy(angle = wrap(crop.angle + 90f))) }, enabled = !busy) { Text("Rotate 90°") }
-                OutlinedButton({ adjust(Crop()) }, enabled = !busy) { Text("Reset crop") }
-            }
         }
-        Text("Grain ${"%.1f".format(grain)}× (1.0 is the film's own)")
-        Slider(grain, { grain = it; result = null }, valueRange = 0f..3f, enabled = !busy)
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            stocks.forEach { FilterChip(stock == it, { stock = it; result = null }, { Text(it.name) }, enabled = !busy) }
-        }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(!large, { large = false; result = null }, { Text("2048 px") }, enabled = !busy)
-            FilterChip(large, { large = true; result = null }, { Text("4096 px") }, enabled = !busy)
-        }
-        Button({
-            run {
-                val input = source ?: return@run
-                message = "Developing…"
-                val output = File(cacheDir, "developed.jpg")
-                val reply = withContext(Dispatchers.Default) {
-                    Engine.develop(
-                        filmData(this@Screen).path, cacheDir.path, input.path, output.path,
-                        stock.film, stock.paper, if (large) 4096 else 2048,
-                        ratios[crop.ratio].second, crop.zoom, crop.angle, crop.x, crop.y, grain,
-                    )
-                }
-                if (reply.startsWith("OK ")) {
-                    result = output
-                    preview = withContext(Dispatchers.IO) { load(output) }
-                    message = reply.removePrefix("OK ")
-                } else message = reply.removePrefix("ERR ")
-            }
-        }, Modifier.fillMaxWidth(), enabled = source != null && !busy) { Text("Develop") }
-        OutlinedButton({
-            run {
-                val file = result ?: return@run
-                withContext(Dispatchers.IO) { save(file) }
-                message = "Saved to Pictures/Nugs."
-            }
-        }, Modifier.fillMaxWidth(), enabled = result != null && !busy) { Text("Save JPEG") }
-        if (busy) LinearProgressIndicator(Modifier.fillMaxWidth())
-        Text(message)
-        Text(
-            "Built on Negs and spektrafilm. Free software under GPL-3.0: github.com/headsplosion/negs-android",
-            style = MaterialTheme.typography.bodySmall,
-        )
-    }
     }
 }
 
@@ -278,6 +358,8 @@ private fun filmData(context: Context): File {
     val version = context.packageManager.getPackageInfo(context.packageName, 0).longVersionCode
     val root = File(context.filesDir, "film-$version")
     val done = File(root, ".done")
+    // Drop the copies earlier versions unpacked.
+    context.filesDir.listFiles { f -> f.name.startsWith("film-") && f != root }?.forEach { it.deleteRecursively() }
     if (!done.exists()) {
         fun copy(path: String) {
             val children = context.assets.list(path).orEmpty()

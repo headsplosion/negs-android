@@ -1,0 +1,1155 @@
+{
+ "prep": [
+  {
+   "title": "RAW White Balance",
+   "tab": "Prep",
+   "raw": true,
+   "controls": [
+    {
+     "kind": "choice",
+     "label": "White balance",
+     "path": "io.raw_white_balance.mode",
+     "options": [
+      "as_shot",
+      "daylight",
+      "tungsten",
+      "custom"
+     ]
+    },
+    {
+     "kind": "slider",
+     "label": "Temperature (K)",
+     "path": "io.raw_white_balance.temperature",
+     "min": 1667,
+     "max": 25000,
+     "step": 1,
+     "when": [
+      "io.raw_white_balance.mode",
+      "custom"
+     ]
+    },
+    {
+     "kind": "slider",
+     "label": "Tint",
+     "path": "io.raw_white_balance.tint",
+     "min": 0.01,
+     "max": 4,
+     "step": 0.01,
+     "when": [
+      "io.raw_white_balance.mode",
+      "custom"
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Brightness",
+   "tab": "Prep",
+   "controls": [
+    {
+     "kind": "match",
+     "label": "Match camera brightness",
+     "tutorial": "match",
+     "help": "Develops the RAW about as bright as the camera’s own preview, and keeps it there when you change film, paper or a preset. Exposure adds to it."
+    },
+    {
+     "kind": "offset",
+     "label": "Exposure (EV)",
+     "path": "prep.exposure_ev",
+     "min": -3,
+     "max": 3,
+     "step": 0.05
+    },
+    {
+     "kind": "note",
+     "label": "Camera brightness"
+    },
+    {
+     "kind": "toggle",
+     "label": "Auto exposure",
+     "path": "camera.auto_exposure",
+     "metering": true,
+     "help": "Meters the photograph and exposes the film so the metered area lands on mid-grey, as a camera's meter does. Exposure adds to it."
+    },
+    {
+     "kind": "choice",
+     "label": "Metering",
+     "path": "camera.auto_exposure_method",
+     "options": [
+      "average",
+      "median",
+      "center_weighted",
+      "partial",
+      "matrix",
+      "multi_zone",
+      "highlight_weighted"
+     ],
+     "when": "camera.auto_exposure",
+     "metering": true
+    }
+   ]
+  },
+  {
+   "title": "Tone",
+   "tab": "Prep",
+   "controls": [
+    {
+     "kind": "slider",
+     "label": "Highlights",
+     "path": "prep.highlights",
+     "min": -180,
+     "max": 100,
+     "step": 1
+    },
+    {
+     "kind": "slider",
+     "label": "Shadows",
+     "path": "prep.shadows",
+     "min": -100,
+     "max": 100,
+     "step": 1
+    },
+    {
+     "kind": "slider",
+     "label": "Contrast",
+     "path": "prep.contrast",
+     "min": -100,
+     "max": 100,
+     "step": 1
+    },
+    {
+     "kind": "slider",
+     "label": "Lift",
+     "path": "prep.lift",
+     "min": -100,
+     "max": 100,
+     "step": 1
+    },
+    {
+     "kind": "slider",
+     "label": "Gain",
+     "path": "prep.gain",
+     "min": -100,
+     "max": 100,
+     "step": 1
+    }
+   ]
+  },
+  {
+   "title": "Color",
+   "tab": "Prep",
+   "controls": [
+    {
+     "kind": "slider",
+     "label": "Color Boost",
+     "path": "prep.color_boost",
+     "min": -100,
+     "max": 100,
+     "step": 1
+    },
+    {
+     "kind": "slider",
+     "label": "Saturation",
+     "path": "prep.saturation",
+     "min": -100,
+     "max": 100,
+     "step": 1
+    }
+   ]
+  },
+  {
+   "title": "Detail",
+   "tab": "Prep",
+   "controls": [
+    {
+     "kind": "slider",
+     "label": "Midtone Detail",
+     "path": "prep.midtone_detail",
+     "min": -100,
+     "max": 100,
+     "step": 1
+    }
+   ]
+  }
+ ],
+ "lab": [
+  {
+   "title": "Camera",
+   "controls": [
+    {
+     "kind": "slider",
+     "label": "Negative exposure (EV)",
+     "path": "camera.exposure_compensation_ev",
+     "min": -5,
+     "max": 5,
+     "step": 0.1
+    },
+    {
+     "kind": "slider",
+     "label": "Film format (mm)",
+     "path": "camera.film_format_mm",
+     "min": 4,
+     "max": 120,
+     "step": 0.1
+    },
+    {
+     "kind": "slider",
+     "label": "Lens blur (µm)",
+     "path": "camera.lens_blur_um",
+     "min": 0,
+     "max": 100,
+     "step": 0.1,
+     "advanced": true
+    }
+   ],
+   "groups": [
+    {
+     "title": "Lens Diffusion",
+     "basic": 2,
+     "enable": "camera.diffusion_filter.active",
+     "controls": [
+      {
+       "kind": "choice",
+       "label": "Filter",
+       "path": "camera.diffusion_filter.filter_family",
+       "options": [
+        "black_pro_mist",
+        "glimmerglass",
+        "pro_mist",
+        "cinebloom"
+       ]
+      },
+      {
+       "kind": "slider",
+       "label": "Strength",
+       "path": "camera.diffusion_filter.strength",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Spatial scale",
+       "path": "camera.diffusion_filter.spatial_scale",
+       "min": 0.1,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Halo warmth",
+       "path": "camera.diffusion_filter.halo_warmth",
+       "min": -1.5,
+       "max": 1.5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Core intensity",
+       "path": "camera.diffusion_filter.core_intensity",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Halo intensity",
+       "path": "camera.diffusion_filter.halo_intensity",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Bloom intensity",
+       "path": "camera.diffusion_filter.bloom_intensity",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Halo size",
+       "path": "camera.diffusion_filter.halo_size",
+       "min": 0.1,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Bloom size",
+       "path": "camera.diffusion_filter.bloom_size",
+       "min": 0.1,
+       "max": 3,
+       "step": 0.01
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Film",
+   "groups": [
+    {
+     "title": "Film Curves",
+     "basic": 1,
+     "enable": "film_render.density_curves_morph.active",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Gamma",
+       "path": "film_render.density_curves_morph.gamma_factor",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Fast gamma",
+       "path": "film_render.density_curves_morph.gamma_factor_fast",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Slow gamma",
+       "path": "film_render.density_curves_morph.gamma_factor_slow",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Red gamma",
+       "path": "film_render.density_curves_morph.gamma_factor_red",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Green gamma",
+       "path": "film_render.density_curves_morph.gamma_factor_green",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Blue gamma",
+       "path": "film_render.density_curves_morph.gamma_factor_blue",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Developer exhaustion",
+       "path": "film_render.density_curves_morph.developer_exhaustion",
+       "min": 0,
+       "max": 1,
+       "step": 0.01
+      }
+     ]
+    },
+    {
+     "title": "Grain",
+     "basic": 3,
+     "enable": "film_render.grain.active",
+     "controls": [
+      {
+       "kind": "stock",
+       "label": "Red granularity",
+       "path": "film_render.grain.rms_granularity",
+       "index": 0,
+       "min": 0,
+       "max": 80,
+       "step": 0.1,
+       "bw": "Granularity"
+      },
+      {
+       "kind": "stock",
+       "label": "Green granularity",
+       "path": "film_render.grain.rms_granularity",
+       "index": 1,
+       "min": 0,
+       "max": 80,
+       "step": 0.1,
+       "bw": null
+      },
+      {
+       "kind": "stock",
+       "label": "Blue granularity",
+       "path": "film_render.grain.rms_granularity",
+       "index": 2,
+       "min": 0,
+       "max": 80,
+       "step": 0.1,
+       "bw": null
+      },
+      {
+       "kind": "stock",
+       "label": "Red uniformity",
+       "path": "film_render.grain.uniformity",
+       "index": 0,
+       "min": 0,
+       "max": 1,
+       "step": 0.01,
+       "bw": "Uniformity"
+      },
+      {
+       "kind": "stock",
+       "label": "Green uniformity",
+       "path": "film_render.grain.uniformity",
+       "index": 1,
+       "min": 0,
+       "max": 1,
+       "step": 0.01,
+       "bw": null
+      },
+      {
+       "kind": "stock",
+       "label": "Blue uniformity",
+       "path": "film_render.grain.uniformity",
+       "index": 2,
+       "min": 0,
+       "max": 1,
+       "step": 0.01,
+       "bw": null
+      },
+      {
+       "kind": "stock",
+       "label": "Coarse grain size",
+       "path": "film_render.grain.particle_scale_sublayers",
+       "index": 0,
+       "min": 0.05,
+       "max": 2,
+       "step": 0.01,
+       "bw": "Coarse grain size"
+      },
+      {
+       "kind": "stock",
+       "label": "Medium grain size",
+       "path": "film_render.grain.particle_scale_sublayers",
+       "index": 1,
+       "min": 0.05,
+       "max": 2,
+       "step": 0.01,
+       "bw": "Medium grain size"
+      },
+      {
+       "kind": "stock",
+       "label": "Fine grain size",
+       "path": "film_render.grain.particle_scale_sublayers",
+       "index": 2,
+       "min": 0.05,
+       "max": 2,
+       "step": 0.01,
+       "bw": "Fine grain size"
+      },
+      {
+       "kind": "slider",
+       "label": "Dye clouds (µm)",
+       "path": "film_render.grain.blur_dye_clouds_um",
+       "min": 0,
+       "max": 5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Blur (px)",
+       "path": "film_render.grain.blur",
+       "min": 0,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Sharpen amount",
+       "path": "film_render.grain.mult_usm_amount",
+       "min": 0,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Sharpen radius (px)",
+       "path": "film_render.grain.mult_usm_sigma",
+       "min": 0,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Clump blur (µm)",
+       "path": "film_render.grain.micro_structure.0",
+       "min": 0,
+       "max": 1,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Clump size (nm)",
+       "path": "film_render.grain.micro_structure.1",
+       "min": 0,
+       "max": 100,
+       "step": 1
+      }
+     ]
+    },
+    {
+     "title": "Halation",
+     "basic": 1,
+     "enable": "film_render.halation.active",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Amount",
+       "path": "film_render.halation.halation_amount",
+       "min": 0,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Spatial scale",
+       "path": "film_render.halation.halation_spatial_scale",
+       "min": 0.1,
+       "max": 5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Scatter amount",
+       "path": "film_render.halation.scatter_amount",
+       "min": 0,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Scatter scale",
+       "path": "film_render.halation.scatter_spatial_scale",
+       "min": 0.1,
+       "max": 5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Bounces",
+       "path": "film_render.halation.halation_n_bounces",
+       "min": 1,
+       "max": 5,
+       "step": 1
+      },
+      {
+       "kind": "slider",
+       "label": "Bounce decay",
+       "path": "film_render.halation.halation_bounce_decay",
+       "min": 0,
+       "max": 1,
+       "step": 0.01
+      }
+     ]
+    },
+    {
+     "title": "DIR Couplers",
+     "basic": 1,
+     "enable": "film_render.dir_couplers.active",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Amount",
+       "path": "film_render.dir_couplers.amount",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Diffusion (µm)",
+       "path": "film_render.dir_couplers.diffusion_size_um",
+       "min": 0,
+       "max": 100,
+       "step": 0.1
+      },
+      {
+       "kind": "slider",
+       "label": "Tail (µm)",
+       "path": "film_render.dir_couplers.diffusion_tail_um",
+       "min": 0,
+       "max": 400,
+       "step": 1
+      },
+      {
+       "kind": "slider",
+       "label": "Tail weight",
+       "path": "film_render.dir_couplers.diffusion_tail_weight",
+       "min": 0,
+       "max": 1,
+       "step": 0.01
+      }
+     ]
+    },
+    {
+     "title": "Film Base",
+     "basic": 1,
+     "enable": "film_render.base.active",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Density",
+       "path": "film_render.base.scale",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Tilt",
+       "path": "film_render.base.tilt",
+       "min": -1,
+       "max": 1,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Cyan",
+       "path": "film_render.base.cyan",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Magenta",
+       "path": "film_render.base.magenta",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Yellow",
+       "path": "film_render.base.yellow",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Print",
+   "print": true,
+   "footer": "Printing is skipped while scanning film directly.",
+   "groups": [
+    {
+     "title": "Enlarger",
+     "open": true,
+     "basic": 4,
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Print exposure",
+       "path": "enlarger.print_exposure",
+       "min": 0.1,
+       "max": 5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Magenta shift",
+       "path": "enlarger.m_filter_shift",
+       "min": -50,
+       "max": 50,
+       "step": 0.1
+      },
+      {
+       "kind": "slider",
+       "label": "Yellow shift",
+       "path": "enlarger.y_filter_shift",
+       "min": -50,
+       "max": 50,
+       "step": 0.1
+      },
+      {
+       "kind": "action",
+       "label": "Balance Print",
+       "action": "balancePrint",
+       "help": "Sets the magenta and yellow shifts so a mid-grey prints neutral with the current film, bases, paper and enlarger. Use it after changing the film base."
+      },
+      {
+       "kind": "toggle",
+       "label": "Exposure compensation",
+       "path": "enlarger.print_exposure_compensation"
+      },
+      {
+       "kind": "slider",
+       "label": "Preflash exposure",
+       "path": "enlarger.preflash_exposure",
+       "min": 0,
+       "max": 0.5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Preflash magenta",
+       "path": "enlarger.preflash_m_filter_shift",
+       "min": -50,
+       "max": 50,
+       "step": 0.1
+      },
+      {
+       "kind": "slider",
+       "label": "Preflash yellow",
+       "path": "enlarger.preflash_y_filter_shift",
+       "min": -50,
+       "max": 50,
+       "step": 0.1
+      }
+     ]
+    },
+    {
+     "title": "Print Diffusion",
+     "basic": 2,
+     "enable": "enlarger.diffusion_filter.active",
+     "controls": [
+      {
+       "kind": "choice",
+       "label": "Filter",
+       "path": "enlarger.diffusion_filter.filter_family",
+       "options": [
+        "black_pro_mist",
+        "glimmerglass",
+        "pro_mist",
+        "cinebloom"
+       ]
+      },
+      {
+       "kind": "slider",
+       "label": "Strength",
+       "path": "enlarger.diffusion_filter.strength",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Spatial scale",
+       "path": "enlarger.diffusion_filter.spatial_scale",
+       "min": 0.1,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Halo warmth",
+       "path": "enlarger.diffusion_filter.halo_warmth",
+       "min": -1.5,
+       "max": 1.5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Core intensity",
+       "path": "enlarger.diffusion_filter.core_intensity",
+       "min": 0,
+       "max": 4,
+       "step": 0.05
+      },
+      {
+       "kind": "slider",
+       "label": "Core size",
+       "path": "enlarger.diffusion_filter.core_size",
+       "min": 0.1,
+       "max": 4,
+       "step": 0.05
+      },
+      {
+       "kind": "slider",
+       "label": "Halo intensity",
+       "path": "enlarger.diffusion_filter.halo_intensity",
+       "min": 0,
+       "max": 4,
+       "step": 0.05
+      },
+      {
+       "kind": "slider",
+       "label": "Halo size",
+       "path": "enlarger.diffusion_filter.halo_size",
+       "min": 0.1,
+       "max": 4,
+       "step": 0.05
+      },
+      {
+       "kind": "slider",
+       "label": "Bloom intensity",
+       "path": "enlarger.diffusion_filter.bloom_intensity",
+       "min": 0,
+       "max": 4,
+       "step": 0.05
+      },
+      {
+       "kind": "slider",
+       "label": "Bloom size",
+       "path": "enlarger.diffusion_filter.bloom_size",
+       "min": 0.1,
+       "max": 4,
+       "step": 0.05
+      }
+     ]
+    },
+    {
+     "title": "Print Curves",
+     "basic": 1,
+     "enable": "print_render.density_curves_morph.active",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Gamma",
+       "path": "print_render.density_curves_morph.gamma_factor",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Fast gamma",
+       "path": "print_render.density_curves_morph.gamma_factor_fast",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Slow gamma",
+       "path": "print_render.density_curves_morph.gamma_factor_slow",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Red gamma",
+       "path": "print_render.density_curves_morph.gamma_factor_red",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Green gamma",
+       "path": "print_render.density_curves_morph.gamma_factor_green",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Blue gamma",
+       "path": "print_render.density_curves_morph.gamma_factor_blue",
+       "min": 0.5,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Developer exhaustion",
+       "path": "print_render.density_curves_morph.developer_exhaustion",
+       "min": 0,
+       "max": 1,
+       "step": 0.01
+      }
+     ]
+    },
+    {
+     "title": "Print Base",
+     "basic": 1,
+     "enable": "print_render.base.active",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Density",
+       "path": "print_render.base.scale",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Cyan",
+       "path": "print_render.base.cyan",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Magenta",
+       "path": "print_render.base.magenta",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Yellow",
+       "path": "print_render.base.yellow",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      }
+     ]
+    },
+    {
+     "title": "Glare",
+     "basic": 1,
+     "enable": "print_render.glare.active",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Amount",
+       "path": "print_render.glare.percent",
+       "min": 0,
+       "max": 0.2,
+       "step": 0.001
+      },
+      {
+       "kind": "slider",
+       "label": "Roughness",
+       "path": "print_render.glare.roughness",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Blur (px)",
+       "path": "print_render.glare.blur",
+       "min": 0,
+       "max": 5,
+       "step": 0.01
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "title": "Scan & Color",
+   "tab": "Scan",
+   "groups": [
+    {
+     "title": "Scanner",
+     "controls": [
+      {
+       "kind": "slider",
+       "label": "Lens blur (px)",
+       "path": "scanner.lens_blur",
+       "min": 0,
+       "max": 5,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Unsharp radius (px)",
+       "path": "scanner.unsharp_mask.0",
+       "min": 0,
+       "max": 3,
+       "step": 0.01
+      },
+      {
+       "kind": "slider",
+       "label": "Unsharp amount",
+       "path": "scanner.unsharp_mask.1",
+       "min": 0,
+       "max": 2,
+       "step": 0.01
+      },
+      {
+       "kind": "toggle",
+       "label": "White correction",
+       "path": "scanner.white_correction"
+      },
+      {
+       "kind": "slider",
+       "label": "White level",
+       "path": "scanner.white_level",
+       "min": 0.5,
+       "max": 1,
+       "step": 0.01
+      },
+      {
+       "kind": "toggle",
+       "label": "Black correction",
+       "path": "scanner.black_correction"
+      },
+      {
+       "kind": "slider",
+       "label": "Black level",
+       "path": "scanner.black_level",
+       "min": 0,
+       "max": 0.5,
+       "step": 0.01
+      }
+     ]
+    },
+    {
+     "title": "Color Management",
+     "controls": [
+      {
+       "kind": "choice",
+       "label": "Output gamut",
+       "path": "io.output_gamut_compress.algorithm",
+       "options": [
+        "off",
+        "oklch",
+        "oklrab",
+        "cam16ucs",
+        "aces_rgc"
+       ]
+      },
+      {
+       "kind": "choice",
+       "label": "Input gamut",
+       "path": "io.input_gamut_compress.algorithm",
+       "options": [
+        "off",
+        "xy"
+       ]
+      },
+      {
+       "kind": "choice",
+       "label": "Spectral upsampling",
+       "path": "settings.rgb_to_raw_method",
+       "options": [
+        "hanatos2025",
+        "arctic2026beta04",
+        "mallett2019"
+       ]
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "output": [
+  {
+   "title": "Border",
+   "tab": "Output",
+   "controls": [
+    {
+     "kind": "toggle",
+     "label": "Add border",
+     "border": "enabled",
+     "help": "Frames the photograph in a mat or a film frame. The preview always shows it; Include in export decides whether files get it."
+    },
+    {
+     "kind": "styles",
+     "label": "Style",
+     "border": "style",
+     "help": "Solid is a plain mat; Keyline adds a thin line around the photograph; Film is a scanned 120 film frame; 35mm a negative strip with the film’s edge print."
+    },
+    {
+     "kind": "slider",
+     "label": "Width",
+     "border": "width",
+     "percent": true,
+     "min": 0,
+     "max": 15,
+     "step": 0.1,
+     "styles": [
+      "solid",
+      "keyline"
+     ],
+     "help": "The mat’s width, in percent of the photograph’s long edge."
+    },
+    {
+     "kind": "slider",
+     "label": "Line width",
+     "border": "line",
+     "percent": true,
+     "min": 0.05,
+     "max": 2,
+     "step": 0.05,
+     "styles": [
+      "keyline"
+     ],
+     "help": "The line’s width, in percent of the photograph’s long edge."
+    },
+    {
+     "kind": "color",
+     "label": "Color",
+     "border": "color",
+     "styles": [
+      "solid",
+      "keyline"
+     ],
+     "help": "The mat’s colour."
+    },
+    {
+     "kind": "color",
+     "label": "Line color",
+     "border": "lineColor",
+     "styles": [
+      "keyline"
+     ],
+     "help": "The line’s colour."
+    },
+    {
+     "kind": "slider",
+     "label": "Width",
+     "border": "filmWidth",
+     "percent": true,
+     "min": 0,
+     "max": 15,
+     "step": 0.1,
+     "styles": [
+      "film"
+     ],
+     "help": "Adds black around the film frame, in percent of the photograph’s long edge."
+    },
+    {
+     "kind": "toggle",
+     "label": "Extend to 3:4 for Instagram",
+     "border": "instagram",
+     "help": "Adds white above and below, or at the sides, so Instagram shows the whole photograph in a 3:4 portrait post."
+    },
+    {
+     "kind": "toggle",
+     "label": "Include in export",
+     "border": "export",
+     "help": "Adds the border to exported photographs and saved previews."
+    }
+   ]
+  }
+ ],
+ "titles": {
+  "average": "Average",
+  "median": "Median",
+  "center_weighted": "Center-Weighted",
+  "partial": "Partial",
+  "matrix": "Matrix",
+  "multi_zone": "Multi-Zone",
+  "highlight_weighted": "Highlight-Weighted",
+  "as_shot": "As Shot",
+  "daylight": "Daylight",
+  "tungsten": "Tungsten (2850 K)",
+  "custom": "Custom",
+  "black_pro_mist": "Black Pro-Mist",
+  "glimmerglass": "Glimmerglass",
+  "pro_mist": "Pro-Mist",
+  "cinebloom": "CineBloom",
+  "off": "Off",
+  "oklch": "OKLCh",
+  "oklrab": "OKLrab",
+  "cam16ucs": "CAM16-UCS",
+  "aces_rgc": "ACES RGC",
+  "xy": "xy Chromaticity",
+  "hanatos2025": "Hanatos 2025",
+  "arctic2026beta04": "Arctic 2026 (Beta 04)",
+  "mallett2019": "Mallett 2019"
+ }
+}

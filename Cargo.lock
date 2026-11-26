@@ -1506,6 +1506,7 @@ dependencies = [
  "anyhow",
  "image",
  "jni",
+ "serde_json",
  "spektrafilm-core",
  "spektrafilm-gpu",
  "spektrafilm-io",

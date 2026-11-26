@@ -7,7 +7,7 @@ plugins {
 // The film data the engine reads, copied from the repository's data directory.
 val filmData = layout.buildDirectory.dir("filmData")
 val copyFilmData = tasks.register<Sync>("copyFilmData") {
-    from("../../data") { exclude("borders/**", "profile-sources/**") ; into("data") }
+    from("../../data") { exclude("profile-sources/**") ; into("data") }
     from("../../LICENSE")
     into(filmData)
 }

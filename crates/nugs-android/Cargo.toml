@@ -15,3 +15,4 @@ spektrafilm-io.workspace = true
 image.workspace = true
 anyhow.workspace = true
 jni = "0.21"
+serde_json = { workspace = true }
