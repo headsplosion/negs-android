@@ -244,7 +244,8 @@ private fun ComponentActivity.Screen(shared: Uri?) {
                         ControlList(section.getJSONArray("controls").objects(), controls, c, edit, ::change, ::balance)
                     }
                     "Stock" -> {
-                        StockPicker("Film", c.films, edit.film) { change(edit.choose(c, it)) }
+                        FilmRoller(c.films, edit.film) { change(edit.choose(c, it)) }
+                        StockPicker("Search films", c.films, edit.film) { change(edit.choose(c, it)) }
                         Toggle("Scan film directly", edit.flag(c, "io.scan_film")) { change(edit.set("io.scan_film", it)) }
                         if (!edit.flag(c, "io.scan_film")) {
                             StockPicker("Paper", c.papers, edit.paper) { change(edit.copy(paper = it)) }
