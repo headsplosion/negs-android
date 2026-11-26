@@ -47,7 +47,7 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.sin
 
-private val tabs = listOf("Crop", "Prep", "Stock", "Camera", "Film", "Print", "Scan", "Output")
+private val tabs = listOf("Crop", "Presets", "Prep", "Stock", "Camera", "Film", "Print", "Scan", "Output")
 
 class MainActivity : ComponentActivity() {
     private var shared by mutableStateOf<Uri?>(null)
@@ -236,6 +236,7 @@ private fun ComponentActivity.Screen(shared: Uri?) {
                             OutlinedButton({ adjust(Crop()) }) { Text("Reset crop") }
                         }
                     }
+                    "Presets" -> Presets(c, edit, ::change) { message = it }
                     "Prep" -> for (section in controls.prep) {
                         // RAW white balance is for camera RAW files only.
                         if (section.optBoolean("raw") && source?.extension?.lowercase() !in listOf("dng", "raf", "nef", "cr2", "cr3", "arw", "rw2", "orf")) continue
