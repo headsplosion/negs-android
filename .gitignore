@@ -20,3 +20,7 @@ AGENTS.md
 # SwiftPM local build and IDE state
 macos/.build/
 macos/.swiftpm/
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/src/main/jniLibs/

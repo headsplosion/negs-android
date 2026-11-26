@@ -1,0 +1,17 @@
+[package]
+name = "nugs-android"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+spektrafilm-core.workspace = true
+spektrafilm-gpu.workspace = true
+spektrafilm-math.workspace = true
+spektrafilm-io.workspace = true
+image.workspace = true
+anyhow.workspace = true
+jni = "0.21"
