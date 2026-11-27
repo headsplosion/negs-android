@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.ImageDecoder
+import android.graphics.Paint
 import android.net.Uri
 import android.os.Bundle
 import android.provider.MediaStore
@@ -26,7 +27,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.withTransform
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
@@ -84,6 +87,7 @@ private fun request(catalog: Catalog, shot: Shot, maxSide: Int, preview: Boolean
     val frame = JSONObject()
         .put("ratio", ratios[crop.ratio].second.toDouble()).put("zoom", crop.zoom.toDouble())
         .put("angle", crop.angle.toDouble()).put("x", crop.x.toDouble()).put("y", crop.y.toDouble())
+        .put("vertical", crop.vertical.toDouble()).put("horizontal", crop.horizontal.toDouble())
     val border = edit.border.takeIf { it.enabled && (preview || it.export) }
     return JSONObject()
         .put("film", edit.film).put("paper", edit.paper).put("max_side", maxSide).put("preview", preview)
@@ -187,6 +191,16 @@ private fun ComponentActivity.Screen(shared: Uri?) {
         message = "Print balanced: magenta %.2f, yellow %.2f".format(m, y)
     }
 
+    fun straighten(mode: String) = run {
+        val file = source ?: return@run
+        message = "Looking for straight lines…"
+        val base = Math.round(crop.angle / 90f) * 90
+        val reply = call { Engine.straighten(file.path, base.toString(), mode) }
+        val (angle, vertical, horizontal) = reply.split(" ").map { it.toFloat() }
+        adjust(crop.copy(angle = wrap(angle), vertical = vertical, horizontal = horizontal, x = 0f, y = 0f))
+        message = "Straightened: rotate %.1f°, vertical %.1f°, horizontal %.1f°".format(angle - base, vertical, horizontal)
+    }
+
     fun export() = run {
         val c = catalog ?: return@run
         val file = source ?: return@run
@@ -232,8 +246,20 @@ private fun ComponentActivity.Screen(shared: Uri?) {
                                 FilterChip(crop.ratio == i, { adjust(crop.copy(ratio = i, x = 0f, y = 0f)) }, { Text(r.first) })
                             }
                         }
+                        Text("Auto straighten from the photo's lines")
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            listOf("level" to "Level", "vertical" to "Verticals", "full" to "Full").forEach { (mode, name) ->
+                                OutlinedButton({ straighten(mode) }, enabled = !busy) { Text(name) }
+                            }
+                        }
                         Text("Rotate ${"%.1f".format(crop.angle)}°")
                         Slider(crop.angle, { adjust(crop.copy(angle = it)) }, valueRange = -180f..180f)
+                        Dial("Vertical perspective", crop.vertical.toDouble(), -30.0, 30.0, 0.1, null) {
+                            adjust(crop.copy(vertical = it.toFloat()))
+                        }
+                        Dial("Horizontal perspective", crop.horizontal.toDouble(), -30.0, 30.0, 0.1, null) {
+                            adjust(crop.copy(horizontal = it.toFloat()))
+                        }
                         Text("Zoom ${"%.2f".format(crop.zoom)}×")
                         Slider(crop.zoom, { adjust(crop.copy(zoom = it)) }, valueRange = 1f..6f)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -282,7 +308,10 @@ private fun ComponentActivity.Screen(shared: Uri?) {
 }
 
 /** Where the frame sits; x and y are fractions of the photo's size, as in the engine's `Crop`. */
-private data class Crop(val ratio: Int = 0, val zoom: Float = 1f, val angle: Float = 0f, val x: Float = 0f, val y: Float = 0f)
+private data class Crop(
+    val ratio: Int = 0, val zoom: Float = 1f, val angle: Float = 0f, val x: Float = 0f, val y: Float = 0f,
+    val vertical: Float = 0f, val horizontal: Float = 0f,
+)
 
 private val ratios = listOf(
     "Original" to 0f, "1:1" to 1f, "4:5" to 0.8f, "5:4" to 1.25f,
@@ -327,18 +356,21 @@ private fun CropEditor(image: Bitmap, crop: Crop, change: (Crop) -> Unit) {
         val frame = Frame(image, crop)
         val x = crop.x.coerceIn(-frame.maxX, frame.maxX)
         val y = crop.y.coerceIn(-frame.maxY, frame.maxY)
-        val picture = image.asImageBitmap()
+        val paint = Paint(Paint.FILTER_BITMAP_FLAG)
         withTransform({
             translate(size.width / 2f, size.height / 2f)
             rotate(crop.angle, Offset.Zero)
             scale(size.width / frame.width, size.width / frame.width, Offset.Zero)
             translate(-image.width * (0.5f + x), -image.height * (0.5f + y))
-        }) { drawImage(picture) }
-        // Rule of thirds.
-        for (n in 1..2) {
+        }) {
+            drawIntoCanvas { it.nativeCanvas.drawBitmap(image, perspective(image, crop.vertical, crop.horizontal), paint) }
+        }
+        // Rule of thirds, with a finer grid to judge straight lines by.
+        val parts = if (crop.vertical != 0f || crop.horizontal != 0f) 6 else 3
+        for (n in 1 until parts) {
             val line = Color.White.copy(alpha = 0.5f)
-            drawLine(line, Offset(size.width * n / 3f, 0f), Offset(size.width * n / 3f, size.height))
-            drawLine(line, Offset(0f, size.height * n / 3f), Offset(size.width, size.height * n / 3f))
+            drawLine(line, Offset(size.width * n / parts, 0f), Offset(size.width * n / parts, size.height))
+            drawLine(line, Offset(0f, size.height * n / parts), Offset(size.width, size.height * n / parts))
         }
     }
 }

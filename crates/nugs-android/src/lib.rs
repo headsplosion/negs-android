@@ -1,5 +1,8 @@
 //! Android entry point for the film engine: one call that develops a photo file.
+mod geometry;
+
 use anyhow::{Context, Result};
+use geometry::{Mode, Warp};
 use jni::{JNIEnv, objects::{JClass, JString}, sys::jstring};
 use serde_json::Value;
 use spektrafilm_core::{params::RuntimeParams, pipeline::Pipeline, preview, profile};
@@ -18,11 +21,14 @@ pub struct Crop {
     pub angle: f64,
     pub x: f64,
     pub y: f64,
+    /// Perspective in degrees, applied before the rest (see [`Warp`]).
+    pub vertical: f64,
+    pub horizontal: f64,
 }
 
 impl Default for Crop {
     fn default() -> Self {
-        Crop { ratio: 0.0, zoom: 1.0, angle: 0.0, x: 0.0, y: 0.0 }
+        Crop { ratio: 0.0, zoom: 1.0, angle: 0.0, x: 0.0, y: 0.0, vertical: 0.0, horizontal: 0.0 }
     }
 }
 
@@ -39,14 +45,18 @@ fn cut(image: ImageBuf, crop: Crop, max_side: u32) -> ImageBuf {
     let mx = ((iw - w * c - h * s) / 2.0).max(0.0);
     let my = ((ih - w * s - h * c) / 2.0).max(0.0);
     let (dx, dy) = ((crop.x * iw).clamp(-mx, mx), (crop.y * ih).clamp(-my, my));
+    let warp = Warp::new(iw, ih, crop.vertical, crop.horizontal);
+    let flat = crop.vertical == 0.0 && crop.horizontal == 0.0;
     let scale = (max_side as f64 / w.max(h)).min(1.0);
     let (ow, oh) = (((w * scale).round() as u32).max(1), ((h * scale).round() as u32).max(1));
-    if crop.angle == 0.0 && dx == 0.0 && dy == 0.0 && (w - iw).abs() < 0.5 && (h - ih).abs() < 0.5 {
+    if flat && crop.angle == 0.0 && dx == 0.0 && dy == 0.0 && (w - iw).abs() < 0.5 && (h - ih).abs() < 0.5 {
         return if scale < 1.0 { preview::downsample_area(&image, (ow, oh)) } else { image };
     }
     // Shrink first (area filter), then turn and cut with bilinear sampling.
-    let small = ((iw * scale).round().max(1.0) as u32, (ih * scale).round().max(1.0) as u32);
-    let image = if scale < 1.0 { preview::downsample_area(&image, small) } else { image };
+    // A warp enlarges, so it needs more of the photo's pixels.
+    let shrink = (scale / warp.scale).min(1.0);
+    let small = ((iw * shrink).round().max(1.0) as u32, (ih * shrink).round().max(1.0) as u32);
+    let image = if shrink < 1.0 { preview::downsample_area(&image, small) } else { image };
     let (sw, sh) = (image.width as usize, image.height as usize);
     let (kx, ky) = (sw as f64 / iw, sh as f64 / ih);
     let mut data = Vec::with_capacity(ow as usize * oh as usize * 3);
@@ -54,8 +64,12 @@ fn cut(image: ImageBuf, crop: Crop, max_side: u32) -> ImageBuf {
         let v = ((row as f64 + 0.5) / oh as f64 - 0.5) * h;
         for col in 0..ow {
             let u = ((col as f64 + 0.5) / ow as f64 - 0.5) * w;
-            let px = ((iw / 2.0 + dx + u * cos + v * sin) * kx - 0.5).clamp(0.0, (sw - 1) as f64);
-            let py = ((ih / 2.0 + dy - u * sin + v * cos) * ky - 0.5).clamp(0.0, (sh - 1) as f64);
+            let (mut a, mut b) = (dx + u * cos + v * sin, dy - u * sin + v * cos);
+            if !flat {
+                (a, b) = warp.source(a, b);
+            }
+            let px = ((iw / 2.0 + a) * kx - 0.5).clamp(0.0, (sw - 1) as f64);
+            let py = ((ih / 2.0 + b) * ky - 0.5).clamp(0.0, (sh - 1) as f64);
             let (x0, y0) = (px as usize, py as usize);
             let (x1, y1) = ((x0 + 1).min(sw - 1), (y0 + 1).min(sh - 1));
             let (fx, fy) = (px - x0 as f64, py - y0 as f64);
@@ -139,6 +153,8 @@ pub fn develop(data: &Path, input: &Path, output: &Path, request: &str) -> Resul
         angle: number("angle", 0.0),
         x: number("x", 0.0),
         y: number("y", 0.0),
+        vertical: number("vertical", 0.0),
+        horizontal: number("horizontal", 0.0),
     };
 
     let (image, colour) = if request["preview"].as_bool() == Some(true) {
@@ -233,6 +249,42 @@ pub fn develop(data: &Path, input: &Path, output: &Path, request: &str) -> Resul
     Ok(format!("{width}×{height} · {:.1} s · {used}{note}", started.elapsed().as_secs_f64()))
 }
 
+/// The rotation and perspective that straighten the photo's lines, near its
+/// quarter turn `base`: (angle, vertical, horizontal).
+pub fn straighten(input: &Path, base: f64, mode: &str) -> Result<(f64, f64, f64)> {
+    let mode = match mode {
+        "level" => Mode::Level,
+        "vertical" => Mode::Vertical,
+        _ => Mode::Full,
+    };
+    let (image, _) = load(input, &RuntimeParams::default())?;
+    let long = image.width.max(image.height);
+    let image = if long > 1200 {
+        let size = |v: u32| (v as u64 * 1200 / long as u64).max(1) as u32;
+        let small = (size(image.width), size(image.height));
+        preview::downsample_area(&image, small)
+    } else {
+        image
+    };
+    geometry::solve(&geometry::segments(&image), image.width as f64, image.height as f64, base, mode)
+        .context("Not enough straight lines in this photo")
+}
+
+/// Kotlin: `Engine.straighten(...)`, replying "OK <angle> <vertical> <horizontal>".
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_headsplosion_nugs_Engine_straighten<'local>(
+    mut env: JNIEnv<'local>,
+    _class: JClass<'local>,
+    input: JString<'local>,
+    base: JString<'local>,
+    mode: JString<'local>,
+) -> jstring {
+    let [input, base, mode] = [&input, &base, &mode].map(|s| text(&mut env, s));
+    answer(&mut env, || {
+        straighten(Path::new(&input), base.parse()?, &mode).map(|(a, v, h)| format!("{a} {v} {h}"))
+    })
+}
+
 /// Run `work` for Kotlin: "OK <reply>" or "ERR <reason>".
 fn answer(env: &mut JNIEnv, work: impl FnOnce() -> Result<String>) -> jstring {
     // A panic must not cross into Java.
@@ -312,7 +364,7 @@ mod tests {
         assert_eq!((all.width, all.height), (40, 20));
         for angle in [-135.0, -30.0, 0.0, 12.0, 90.0, 180.0] {
             for ratio in [1.0, 0.8, 16.0 / 9.0] {
-                let out = cut(ramp(), Crop { ratio, zoom: 1.0, angle, x: 9.0, y: -9.0 }, 4096);
+                let out = cut(ramp(), Crop { ratio, zoom: 1.0, angle, x: 9.0, y: -9.0, ..Default::default() }, 4096);
                 assert!((out.width as f64 / out.height as f64 - ratio).abs() < 0.2, "{ratio} {angle}");
                 assert!(out.data.iter().all(|v| (0.0..=39.0).contains(&(*v as f64))));
             }
@@ -443,6 +495,57 @@ mod tests {
                 _ => *slot = value,
             }
             super::parse_params(&params).unwrap_or_else(|e| panic!("{path}: {e:#}"));
+        }
+    }
+
+    /// A wall of upright and flat bars, `width` × `height`.
+    fn grid(width: u32, height: u32) -> ImageBuf {
+        let data = (0..height).flat_map(|y| (0..width).flat_map(move |x| {
+            let bar = (x + 20) % 110 < 14 || (y + 30) % 130 < 12;
+            let v = if bar { 0.05 } else { 0.6 };
+            [v as _, v as _, v as _]
+        })).collect();
+        ImageBuf::from_data(width, height, data)
+    }
+
+    /// The length-weighted median lean of lines from upright or flat, in degrees.
+    fn lean(image: &ImageBuf) -> f64 {
+        let mut off: Vec<(f64, f64)> = super::geometry::segments(image).iter().map(|s| {
+            let (dx, dy) = ((s.b.0 - s.a.0).abs(), (s.b.1 - s.a.1).abs());
+            (dx.min(dy).atan2(dx.max(dy)).to_degrees(), dx.hypot(dy))
+        }).collect();
+        off.sort_by(|a, b| a.0.total_cmp(&b.0));
+        let half: f64 = off.iter().map(|o| o.1).sum::<f64>() / 2.0;
+        let mut sum = 0.0;
+        off.iter().find(|o| { sum += o.1; sum >= half }).map_or(90.0, |o| o.0)
+    }
+
+    #[test]
+    fn straightening_stands_the_lines_up() {
+        use super::geometry::{Mode, segments, solve};
+        // Keystoned and tilted, then solved and applied on top.
+        for (vertical, horizontal, angle, mode) in
+            [(0.0, 0.0, 6.0, Mode::Level), (-12.0, 0.0, 3.0, Mode::Vertical), (10.0, -9.0, -4.0, Mode::Full)]
+        {
+            let bent = cut(grid(900, 700), Crop { vertical, horizontal, angle, ..Default::default() }, 900);
+            let (w, h) = (bent.width as f64, bent.height as f64);
+            let before = lean(&bent);
+            let (a, v, hz) = solve(&segments(&bent), w, h, 0.0, mode).expect("lines");
+            let fixed = cut(bent, Crop { vertical: v, horizontal: hz, angle: a, ..Default::default() }, 900);
+            let after = lean(&fixed);
+            println!("bent by {vertical} {horizontal} {angle}: fix {v:.1} {hz:.1} {a:.1}; lean {before:.2} -> {after:.2}");
+            assert!(after < 0.7 && after < before / 2.0, "{before} -> {after}");
+        }
+        assert!(solve(&segments(&ImageBuf::from_data(100, 100, vec![0.5 as _; 30000])), 100.0, 100.0, 0.0, Mode::Full).is_none());
+    }
+
+    #[test]
+    fn warp_places_what_it_samples() {
+        let w = super::geometry::Warp::new(4000.0, 3000.0, 14.0, -11.0);
+        for p in [(0.0, 0.0), (-2000.0, -1500.0), (900.0, 700.0)] {
+            let (x, y) = w.source(p.0, p.1);
+            let back = w.place(x, y);
+            assert!((back.0 - p.0).abs() < 1e-6 && (back.1 - p.1).abs() < 1e-6, "{p:?} {back:?}");
         }
     }
 }

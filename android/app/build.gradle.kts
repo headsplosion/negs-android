@@ -23,6 +23,16 @@ android {
         versionName = "0.1.$versionCode"
         ndk { abiFilters += "arm64-v8a" }
     }
+    // One permanent key lets each build install over the last, keeping presets.
+    // It lives in a GitHub secret; without it the build uses a throwaway key.
+    System.getenv("NUGS_KEYSTORE")?.let { path ->
+        signingConfigs.getByName("debug") {
+            storeFile = file(path)
+            storePassword = "nugs-signing"
+            keyAlias = "nugs"
+            keyPassword = "nugs-signing"
+        }
+    }
     sourceSets["main"].assets.srcDir(filmData)
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
     kotlinOptions { jvmTarget = "17" }
