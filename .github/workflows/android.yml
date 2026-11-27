@@ -30,10 +30,10 @@ jobs:
           cargo ndk -t arm64-v8a --platform 29 -o android/app/src/main/jniLibs build --release -p nugs-android
       - name: Load the signing key
         env:
-          SIGNING_KEY: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY: ${{ secrets.SIGNING_KEY || secrets.sign }}
         run: |
           if [ -z "$SIGNING_KEY" ]; then
-            echo "::warning::No SIGNING_KEY secret: this APK can't update an installed one."
+            echo "::warning::No signing key secret: this APK can't update an installed one."
             exit 0
           fi
           printf '%s' "$SIGNING_KEY" | tr -d '[:space:]' | base64 -d > "$RUNNER_TEMP/nugs.p12"
