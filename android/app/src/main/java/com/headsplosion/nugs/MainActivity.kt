@@ -74,7 +74,7 @@ class MainActivity : ComponentActivity() {
 }
 
 /** What a preview shows; a change to any of it develops again. */
-private data class Shot(val source: File, val edit: Edit, val crop: Crop)
+private data class Shot(val source: File, val edit: Edit, val crop: Crop, val maxSide: Int = 1080)
 
 /** The engine runs one call at a time. */
 private val engine = Mutex()
@@ -112,6 +112,9 @@ private fun ComponentActivity.Screen(shared: Uri?) {
     var crop by remember { mutableStateOf(Crop()) }
     var tab by remember { mutableIntStateOf(0) }
     var large by remember { mutableStateOf(false) }
+    var view by remember { mutableStateOf(View()) }
+    // Zoomed in, the preview develops at the export size, to show real detail.
+    val detail by remember { derivedStateOf { view.zoom > 1.2f } }
     var busy by remember { mutableStateOf(false) }
     var rendering by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf("Loading film data…") }
@@ -143,6 +146,7 @@ private fun ComponentActivity.Screen(shared: Uri?) {
         source = file
         preview = null
         crop = Crop()
+        view = View()
         tab = 0
         message = "Frame it on this tab; the others show the developed photo."
     }
@@ -155,14 +159,15 @@ private fun ComponentActivity.Screen(shared: Uri?) {
     LaunchedEffect(Unit) {
         snapshotFlow {
             val file = source
-            if (file == null || catalog == null || tab == 0) null else Shot(file, edit, crop)
+            val side = if (!detail) 1080 else if (large) 4096 else 2048
+            if (file == null || catalog == null || tab == 0) null else Shot(file, edit, crop, side)
         }.distinctUntilChanged().filterNotNull().conflate().collect { shot ->
             rendering = true
             try {
                 val output = File(cacheDir, "preview.jpg")
-                val made = request(catalog!!, shot, 1080, true)
+                val made = request(catalog!!, shot, shot.maxSide, true)
                 message = call { Engine.develop(data!!.path, cacheDir.path, shot.source.path, output.path, made) }
-                preview = withContext(Dispatchers.IO) { load(output) }
+                preview = withContext(Dispatchers.IO) { load(output, shot.maxSide) }
             } catch (e: Throwable) {
                 message = "Failed: ${e.message}"
             }
@@ -171,7 +176,7 @@ private fun ComponentActivity.Screen(shared: Uri?) {
     }
 
     fun change(new: Edit) { edit = new }
-    fun adjust(new: Crop) { crop = new; preview = null }
+    fun adjust(new: Crop) { crop = new; preview = null; view = View() }
 
     fun balance() = run {
         val c = catalog ?: return@run
@@ -196,7 +201,7 @@ private fun ComponentActivity.Screen(shared: Uri?) {
     Column(Modifier.safeDrawingPadding()) {
         Box(Modifier.fillMaxWidth().fillMaxHeight(0.45f).padding(horizontal = 16.dp), contentAlignment = Alignment.Center) {
             val developed = preview.takeIf { tab != 0 }
-            if (developed != null) Image(developed.asImageBitmap(), null, Modifier.fillMaxSize())
+            if (developed != null) ZoomImage(developed, view) { view = it }
             else original?.let { CropEditor(it, crop, ::adjust) }
         }
         if (rendering || busy) LinearProgressIndicator(Modifier.fillMaxWidth())
@@ -350,9 +355,9 @@ private fun Context.importPhoto(uri: Uri): File {
 }
 
 /** A screen-sized bitmap, turned upright. */
-private fun load(file: File): Bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
+private fun load(file: File, limit: Int = 1600): Bitmap = ImageDecoder.decodeBitmap(ImageDecoder.createSource(file)) { decoder, info, _ ->
     val long = maxOf(info.size.width, info.size.height)
-    if (long > 1600) decoder.setTargetSampleSize((long + 1599) / 1600)
+    if (long > limit) decoder.setTargetSampleSize((long + limit - 1) / limit)
 }
 
 /** The engine reads plain files, so unpack the film data once per version. */

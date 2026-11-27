@@ -142,8 +142,15 @@ pub fn develop(data: &Path, input: &Path, output: &Path, request: &str) -> Resul
     };
 
     let (image, colour) = if request["preview"].as_bool() == Some(true) {
+        // A detailed preview keeps enough of the photo for the frame to be
+        // as sharp as an export.
+        let limit = if max_side > 1080 {
+            ((max_side as f64 * crop.zoom.max(1.0) * 1.3) as u32).clamp(PREVIEW_SOURCE, 6000)
+        } else {
+            PREVIEW_SOURCE
+        };
         let key = format!(
-            "{}|{:?}|{:?}|{:?}|{:?}",
+            "{limit}|{}|{:?}|{:?}|{:?}|{:?}",
             input.display(),
             std::fs::metadata(input).and_then(|m| m.modified()).ok(),
             params.io.raw_white_balance,
@@ -155,8 +162,8 @@ pub fn develop(data: &Path, input: &Path, output: &Path, request: &str) -> Resul
             *cache = None;
             let (image, colour) = load(input, &params)?;
             let long = image.width.max(image.height);
-            let image = if long > PREVIEW_SOURCE {
-                let size = |v: u32| (v as u64 * PREVIEW_SOURCE as u64 / long as u64).max(1) as u32;
+            let image = if long > limit {
+                let size = |v: u32| (v as u64 * limit as u64 / long as u64).max(1) as u32;
                 let small = (size(image.width), size(image.height));
                 preview::downsample_area(&image, small)
             } else {
